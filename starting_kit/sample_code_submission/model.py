@@ -1,25 +1,29 @@
-'''
-Sample predictive model.
-You must supply at least 4 methods:
-- fit: trains the model.
-- predict: uses the model to perform predictions.
-'''
-import numpy as np   # We recommend to use numpy arrays
+import numpy as np# We recommend to use numpy arrays
 from os.path import isfile
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import IsolationForest
+import pandas as pd # for using pandas daraframe
+from sklearn.preprocessing import StandardScaler # for standardizing the Data
+from sklearn.feature_selection import GenericUnivariateSelect, f_regression
+from sklearn.ensemble import BaggingRegressor
+
+from sklearn.decomposition import PCA
 from sklearn.base import BaseEstimator
-from sklearn.ensemble import RandomForestRegressor
 
 class model (BaseEstimator):
+
+    
     def __init__(self):
         '''
         This constructor is supposed to initialize data members.
         Use triple quotes for function documentation. 
         '''
-        self.num_train_samples=0
-        self.num_feat=1
+        self.num_train_samples= 38563
+        self.num_feat=59
         self.num_labels=1
         self.is_trained=False
-        self.mod = RandomForestRegressor(max_depth=20, random_state=0,  n_estimators=100) # Initalizing the model 
+        self.preprocess = GenericUnivariateSelect(f_regression, 'k_best', param=self.num_feat)
+        self.mod = BaggingRegressor(n_estimators=60,bootstrap=True,bootstrap_features=False,warm_start = False,n_jobs=1,oob_score=True)
     
     def fit(self, X, y):
         '''
@@ -35,15 +39,15 @@ class model (BaseEstimator):
         Use data_converter.convert_to_num() to convert to the category number format.
         For regression, labels are continuous values.
         '''
-        self.num_train_samples = X.shape[0]
-        if X.ndim>1: self.num_feat = X.shape[1]
-        print("FIT: dim(X)= [{:d}, {:d}]".format(self.num_train_samples, self.num_feat))
-        num_train_samples = y.shape[0]
-        if y.ndim>1: self.num_labels = y.shape[1]
-        print("FIT: dim(y)= [{:d}, {:d}]".format(num_train_samples, self.num_labels))
-        if (self.num_train_samples != num_train_samples):
-            print("ARRGH: number of samples in X and y do not match!")
-        self.mod.fit(X,y)
+        norm = np.linalg.norm(X)
+        pca = PCA(0.80)
+        pca.fit(X/norm)
+        x_pca =pca. transform(X/norm)
+        if (not self.is_trained):
+            self.num_feat = pca.n_components_
+        X_preprocess=self.preprocess.fit_transform(X,y)
+
+        self.mod.fit(X_preprocess, y)
         self.is_trained = True
 
     def predict(self, X):
@@ -58,25 +62,27 @@ class model (BaseEstimator):
         Scikit-learn also has a function predict-proba, we do not require it.
         The function predict eventually can return probabilities.
         '''
-        num_test_samples = X.shape[0]
-        if X.ndim>1: num_feat = X.shape[1]
-        print("PREDICT: dim(X)= [{:d}, {:d}]".format(num_test_samples, num_feat))
-        if (self.num_feat != num_feat):
-            print("ARRGH: number of features in X does not match training data!")
-        print("PREDICT: dim(y)= [{:d}, {:d}]".format(num_test_samples, self.num_labels))
-        y = np.zeros([num_test_samples, self.num_labels])
-        # If you uncomment the next line, you get pretty good results for the Iris data :-)
+    
+        y=np.random.rand(X.shape[0])
+        X_preprocess = self.preprocess.fit_transform(X,y)
         y = self.mod.predict(X)
+
+
         return y
 
-    def save(self, outname='model'):
-        ''' Placeholder function.
-            Save the trained model to avoid re-training in the future.
-        '''
+    def save(self, path="./"):
         pass
-        
-    def load(self):
-        ''' Placeholder function.
-            Load a previously saved trained model to avoid re-training.
-        '''
+
+    def load(self, path="./"):
         pass
+
+
+def test():
+    mod = model()
+    X_random = np.random.rand(mod.num_train_samples,mod.num_feat)
+    Y_random = np.random.rand(mod.num_train_samples,)
+    mod.fit(X_random,Y_random)
+    mod.predict(X_random)
+   
+if __name__ == "__main__":
+    test()
