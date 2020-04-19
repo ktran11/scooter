@@ -1,80 +1,69 @@
-import numpy as np# We recommend to use numpy arrays
+import numpy as np   
 from os.path import isfile
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.ensemble import IsolationForest
-import pandas as pd # for using pandas daraframe
-from sklearn.preprocessing import StandardScaler # for standardizing the Data
-from sklearn.feature_selection import GenericUnivariateSelect, f_regression
-from sklearn.ensemble import BaggingRegressor
-from sklearn.decomposition import PCA
 from sklearn.base import BaseEstimator
+from sklearn.ensemble import BaggingRegressor
+from sklearn.preprocessing import QuantileTransformer
+from sklearn.preprocessing import StandardScaler 
+from sklearn.feature_selection import SelectKBest, f_regression
+
+
+
 
 class model (BaseEstimator):
-
-    
     def __init__(self):
-        '''
-        This constructor is supposed to initialize data members.
-        Use triple quotes for function documentation. 
-        '''
-        self.num_train_samples= 38563
+        self.num_train_samples=38563
         self.num_feat=59
         self.num_labels=1
         self.is_trained=False
-        self.preprocess = GenericUnivariateSelect(f_regression, 'k_best', param=self.num_feat)
+        self.preprocess_Scaler=StandardScaler()
+        self.imp = QuantileTransformer(output_distribution='normal', random_state=0)
+        self.SelectKbest = SelectKBest(score_func=f_regression,k=8)
         self.mod = BaggingRegressor(n_estimators = 50,n_jobs =1, warm_start = False)
     
-    def fit(self, X, y):
-        '''
-        This function should train the model parameters.
-        Here we do nothing in this example...
-        Args:
-            X: Training data matrix of dim num_train_samples * num_feat.
-            y: Training label matrix of dim num_train_samples * num_labels.
-        Both inputs are numpy arrays.
-        For classification, labels could be either numbers 0, 1, ... c-1 for c classe
-        or one-hot encoded vector of zeros, with a 1 at the kth position for class k.
-        The AutoML format support on-hot encoding, which also works for multi-labels problems.
-        Use data_converter.convert_to_num() to convert to the category number format.
-        For regression, labels are continuous values.
-        '''
-        norm = np.linalg.norm(X)
-        pca = PCA(0.99)
-        pca.fit(X/norm)
-        x_pca =pca. transform(X/norm)
-        if (not self.is_trained):
-            self.num_feat = pca.n_components_
-        X_preprocess=self.preprocess.fit_transform(X,y)
-        self.mod.fit(X_preprocess, y)
-        self.is_trained = True
+
         
+    def fit(self, X, y):
+        self.num_train_samples = X.shape[0]
+        if X.ndim>1: self.num_feat = X.shape[1]
+        print("FIT: dim(X)= [{:d}, {:d}]".format(self.num_train_samples, self.num_feat))
+        num_train_samples = y.shape[0]
+        if y.ndim>1: self.num_labels = y.shape[1]
+        print("FIT: dim(y)= [{:d}, {:d}]".format(num_train_samples, self.num_labels))
+        if (self.num_train_samples != num_train_samples):
+            print("ARRGH: number of samples in X and y do not match!")
+        X_scaled=self.preprocess_Scaler.fit_transform(X)
+        X_imp = self.imp.fit_transform(X_scaled)
+        X_selected=self.SelectKbest.fit_transform(X_imp,y)
+        self.mod.fit(X_selected,y)
+        self.is_trained = True
+
     def predict(self, X):
-        '''
-        This function should provide predictions of labels on (test) data.
-        Here we just return zeros...
-        Make sure that the predicted values are in the correct format for the scoring
-        metric. For example, binary classification problems often expect predictions
-        in the form of a discriminant value (if the area under the ROC curve it the metric)
-        rather that predictions of the class labels themselves. For multi-class or multi-labels
-        problems, class probabilities are often expected if the metric is cross-entropy.
-        Scikit-learn also has a function predict-proba, we do not require it.
-        The function predict eventually can return probabilities.
-        '''
-    
-        y=np.random.rand(X.shape[0])
-        X_preprocess = self.preprocess.fit_transform(X,y)
-        y = self.mod.predict(X)
-
-
+        num_test_samples = X.shape[0]
+        if X.ndim>1: num_feat = X.shape[1]
+        print("PREDICT: dim(X)= [{:d}, {:d}]".format(num_test_samples, num_feat))
+        if (self.num_feat != num_feat):
+            print("ARRGH: number of features in X does not match training data!")
+        print("PREDICT: dim(y)= [{:d}, {:d}]".format(num_test_samples, self.num_labels))
+        y = np.zeros([num_test_samples, self.num_labels])
+        
+        X_scaled=self.preprocess_Scaler.transform(X)
+        X_imp = self.imp.transform(X_scaled)
+        X_selected=self.SelectKbest.transform(X_imp)
+        y = self.mod.predict(X_selected)
         return y
 
-    def save(self, path="./"):
+    def save(self, outname='model'):
+        ''' Placeholder function.
+            Save the trained model to avoid re-training in the future.
+        '''
         pass
-
-    def load(self, path="./"):
+        
+    def load(self):
+        ''' Placeholder function.
+            Load a previously saved trained model to avoid re-training.
+        '''
         pass
-
-
+        
 def test():
     mod = model()
     X_random = np.random.rand(mod.num_train_samples,mod.num_feat)
@@ -88,3 +77,4 @@ def test():
 
 if __name__ == "__main__":
     test()
+
